@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>File Converter</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-    <link rel="stylesheet" href="styles.css?v=12" />
+    <link rel="stylesheet" href="styles.css?v=13" />
   </head>
   <body>
     <main class="app">
@@ -49,10 +49,10 @@
             <div class="row">
               <span class="label">
                 Compression
-                <span class="sublabel">Higher = smaller file, blockier picture. Doesn't change resolution or audio.</span>
+                <span class="sublabel">0 = lossless (huge file). ~18 = visually indistinguishable. 32 = heavy compression.</span>
               </span>
               <div class="slider-group">
-                <input type="range" id="video-crf" min="18" max="32" step="1" value="23" />
+                <input type="range" id="video-crf" min="0" max="32" step="1" value="23" />
                 <span class="slider-value" id="video-crf-value">23</span>
               </div>
             </div>
@@ -250,6 +250,6 @@
       </aside>
     </main>
 
-    <script type="module" src="app.js?v=12"></script>
+    <script type="module" src="app.js?v=13"></script>
   </body>
 </html>
