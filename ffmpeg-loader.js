@@ -86,18 +86,22 @@ const fetchBlobURL = async (url, type) => {
   return URL.createObjectURL(new Blob([buf], { type }));
 };
 
-export const loadFFmpeg = async ({ onLog, onProgress, onStatus } = {}) => {
-  if (instance) {
-    if (onLog) instance.on("log", ({ message }) => onLog(message));
-    if (onProgress) instance.on("progress", (e) => onProgress(e));
-    return instance;
-  }
+// Global handler slots so callers can swap progress/log routing per job.
+// Internal: installed once on the ffmpeg instance, dispatches to current slot.
+let activeHandlers = { onProgress: null, onLog: null };
+
+export const setFFmpegHandlers = ({ onProgress = null, onLog = null } = {}) => {
+  activeHandlers = { onProgress, onLog };
+};
+
+export const loadFFmpeg = async ({ onStatus } = {}) => {
+  if (instance) return instance;
   if (loading) return loading;
 
   loading = (async () => {
     const ff = new FFmpeg();
-    if (onLog) ff.on("log", ({ message }) => onLog(message));
-    if (onProgress) ff.on("progress", (e) => onProgress(e));
+    ff.on("log", ({ message }) => { activeHandlers.onLog?.(message); });
+    ff.on("progress", (e) => { activeHandlers.onProgress?.(e); });
 
     onStatus?.("Loading FFmpeg core (first run only — ~30 MB)…");
     const [coreURL, wasmURL, classWorkerURL] = await Promise.all([

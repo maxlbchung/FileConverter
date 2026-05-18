@@ -7,41 +7,147 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <main>
-      <nav class="topnav">
-        <a href="index.html" class="brand">File Converter</a>
-        <a href="video.html" class="tab">Video</a>
-        <a href="audio.html" class="tab">Audio</a>
-        <a href="image.html" class="tab">Image</a>
-      </nav>
+    <main class="app">
+      <section class="content">
+        <nav class="topnav">
+          <span class="brand">File Converter</span>
+          <button class="tab active" data-tab="video">Video</button>
+          <button class="tab" data-tab="audio">Audio</button>
+          <button class="tab" data-tab="image">Image</button>
+        </nav>
 
-      <header>
-        <h1>Convert files in your browser</h1>
-        <p class="subtitle">Everything runs locally — your files never leave your machine.</p>
-      </header>
+        <!-- VIDEO -->
+        <section class="tab-pane" data-tab="video">
+          <header>
+            <h1>Video</h1>
+            <p class="subtitle">MKV, MP4, WebM, MOV, AVI → MP4, WebM, MKV, MOV, GIF</p>
+          </header>
 
-      <section class="cards">
-        <a class="card" href="video.html">
-          <div class="icon">▶</div>
-          <h3>Video</h3>
-          <p>MKV, MP4, WebM, MOV, AVI &rarr; MP4, WebM, MKV, MOV, GIF</p>
-        </a>
-        <a class="card" href="audio.html">
-          <div class="icon">♪</div>
-          <h3>Audio</h3>
-          <p>MP3, WAV, FLAC, OGG, M4A, OPUS — any to any</p>
-        </a>
-        <a class="card" href="image.html">
-          <div class="icon">▣</div>
-          <h3>Image</h3>
-          <p>PNG, JPEG, WebP, GIF, BMP &rarr; PNG, JPEG, WebP</p>
-        </a>
+          <div class="panel">
+            <div class="row">
+              <span class="label">Convert to</span>
+              <select id="video-format">
+                <option value="mp4">MP4 (H.264 / AAC)</option>
+                <option value="webm">WebM (VP9 / Opus)</option>
+                <option value="mkv">MKV</option>
+                <option value="mov">MOV</option>
+                <option value="gif">GIF (animated)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="dropzone" data-kind="video" tabindex="0">
+            <input type="file" accept="video/*,.mkv,.mp4,.webm,.mov,.avi,.flv,.m4v,.wmv" multiple hidden />
+            <div class="dropzone-content">
+              <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
+                <path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v9.59l3.3-3.3a1 1 0 1 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.42L11 13.59V4a1 1 0 0 1 1-1Zm-7 15a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z"/>
+              </svg>
+              <p><strong>Drop videos here</strong></p>
+              <p class="hint">or click to choose · drops queue automatically</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- AUDIO -->
+        <section class="tab-pane hidden" data-tab="audio">
+          <header>
+            <h1>Audio</h1>
+            <p class="subtitle">MP3, WAV, FLAC, OGG, M4A, OPUS — any to any</p>
+          </header>
+
+          <div class="panel">
+            <div class="row">
+              <span class="label">Convert to</span>
+              <select id="audio-format">
+                <option value="mp3">MP3</option>
+                <option value="wav">WAV (PCM)</option>
+                <option value="flac">FLAC (lossless)</option>
+                <option value="ogg">OGG (Vorbis)</option>
+                <option value="m4a">M4A (AAC)</option>
+                <option value="opus">OPUS</option>
+              </select>
+            </div>
+            <div class="row" id="audio-bitrate-row">
+              <span class="label">Bitrate</span>
+              <select id="audio-bitrate">
+                <option value="96k">96 kbps</option>
+                <option value="128k">128 kbps</option>
+                <option value="192k" selected>192 kbps</option>
+                <option value="256k">256 kbps</option>
+                <option value="320k">320 kbps</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="dropzone" data-kind="audio" tabindex="0">
+            <input type="file" accept="audio/*,.mp3,.wav,.flac,.ogg,.m4a,.opus,.aac,.wma" multiple hidden />
+            <div class="dropzone-content">
+              <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
+                <path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v9.59l3.3-3.3a1 1 0 1 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.42L11 13.59V4a1 1 0 0 1 1-1Zm-7 15a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z"/>
+              </svg>
+              <p><strong>Drop audio files here</strong></p>
+              <p class="hint">or click to choose · queues automatically</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- IMAGE -->
+        <section class="tab-pane hidden" data-tab="image">
+          <header>
+            <h1>Image</h1>
+            <p class="subtitle">PNG, JPEG, WebP, GIF, BMP → PNG, JPEG, WebP</p>
+          </header>
+
+          <div class="panel">
+            <div class="row">
+              <span class="label">Convert to</span>
+              <select id="image-format">
+                <option value="png">PNG (lossless)</option>
+                <option value="jpeg" selected>JPEG</option>
+                <option value="webp">WebP</option>
+              </select>
+            </div>
+            <div class="row" id="image-quality-row">
+              <span class="label">Quality <span id="image-quality-value" class="muted">0.92</span></span>
+              <input id="image-quality" type="range" min="0.1" max="1" step="0.01" value="0.92" />
+            </div>
+          </div>
+
+          <div class="dropzone" data-kind="image" tabindex="0">
+            <input type="file" accept="image/*" multiple hidden />
+            <div class="dropzone-content">
+              <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
+                <path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v9.59l3.3-3.3a1 1 0 1 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.42L11 13.59V4a1 1 0 0 1 1-1Zm-7 15a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z"/>
+              </svg>
+              <p><strong>Drop images here</strong></p>
+              <p class="hint">or click to choose · multiple files supported</p>
+            </div>
+          </div>
+        </section>
       </section>
 
-      <footer>
-        Built with <a href="https://github.com/ffmpegwasm/ffmpeg.wasm">ffmpeg.wasm</a> ·
-        <a href="https://github.com/maxlbchung/FileConverter">source</a>
-      </footer>
+      <aside class="rightbar">
+        <section class="side-panel">
+          <header class="side-header">
+            <h3>Queue</h3>
+            <span id="queue-count" class="badge">0</span>
+          </header>
+          <div id="queue-list" class="job-list"></div>
+          <p class="side-empty" id="queue-empty">No files queued.</p>
+        </section>
+
+        <section class="side-panel">
+          <header class="side-header">
+            <h3>Complete</h3>
+            <span id="complete-count" class="badge">0</span>
+            <button class="tiny-btn" id="clear-complete" title="Clear completed">Clear</button>
+          </header>
+          <div id="complete-list" class="job-list"></div>
+          <p class="side-empty" id="complete-empty">Nothing converted yet.</p>
+        </section>
+      </aside>
     </main>
+
+    <script type="module" src="app.js"></script>
   </body>
 </html>
