@@ -133,10 +133,16 @@ select {
 
 select:hover { border-color: var(--accent); }
 
-input[type="range"] { accent-color: var(--accent); flex: 1; min-width: 80px; }
+input[type="range"] { accent-color: var(--accent); width: 140px; }
+
+.slider-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 
 .slider-value {
-  min-width: 28px;
+  min-width: 32px;
   text-align: right;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
@@ -144,12 +150,16 @@ input[type="range"] { accent-color: var(--accent); flex: 1; min-width: 80px; }
   font-variant-numeric: tabular-nums;
 }
 
+.label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
 .label .sublabel {
-  display: block;
   font-size: 11px;
   color: var(--muted);
   font-weight: normal;
-  margin-top: 1px;
 }
 
 .dim-inputs {
