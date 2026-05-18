@@ -235,7 +235,14 @@ button, .primary {
 }
 
 .success { color: var(--success); margin: 0; font-weight: 600; }
-.error-status { color: var(--danger); }
+.error-status {
+  color: var(--danger);
+  white-space: pre-wrap;
+  text-align: left;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
 
 .log {
   margin-top: 20px;
