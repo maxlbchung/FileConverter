@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Audio Converter — File Converter</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main>
+      <nav class="topnav">
+        <a href="index.html" class="brand">File Converter</a>
+        <a href="video.html" class="tab">Video</a>
+        <a href="audio.html" class="tab active">Audio</a>
+        <a href="image.html" class="tab">Image</a>
+      </nav>
+
+      <header>
+        <h1>Audio</h1>
+        <p class="subtitle">MP3, WAV, FLAC, OGG, M4A, OPUS, AAC — any to any</p>
+      </header>
+
+      <section id="dropzone" class="dropzone" tabindex="0">
+        <input id="file-input" type="file" accept="audio/*,.mp3,.wav,.flac,.ogg,.m4a,.opus,.aac,.wma" hidden />
+        <div class="dropzone-content">
+          <svg viewBox="0 0 24 24" width="48" height="48" aria-hidden="true">
+            <path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v9.59l3.3-3.3a1 1 0 1 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.42L11 13.59V4a1 1 0 0 1 1-1Zm-7 15a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z"/>
+          </svg>
+          <p><strong>Drop an audio file here</strong></p>
+          <p class="hint">or click to choose</p>
+        </div>
+      </section>
+
+      <section id="file-info" class="panel hidden">
+        <div class="row">
+          <span class="label">File</span>
+          <span id="file-name" class="value"></span>
+        </div>
+        <div class="row">
+          <span class="label">Size</span>
+          <span id="file-size" class="value"></span>
+        </div>
+        <div class="row">
+          <span class="label">Convert to</span>
+          <select id="output-format">
+            <option value="mp3">MP3</option>
+            <option value="wav">WAV (PCM)</option>
+            <option value="flac">FLAC (lossless)</option>
+            <option value="ogg">OGG (Vorbis)</option>
+            <option value="m4a">M4A (AAC)</option>
+            <option value="opus">OPUS</option>
+          </select>
+        </div>
+        <div class="row" id="bitrate-row">
+          <span class="label">Bitrate</span>
+          <select id="bitrate">
+            <option value="96k">96 kbps</option>
+            <option value="128k">128 kbps</option>
+            <option value="192k" selected>192 kbps</option>
+            <option value="256k">256 kbps</option>
+            <option value="320k">320 kbps</option>
+          </select>
+        </div>
+        <button id="convert-btn" class="primary" disabled>Convert</button>
+        <button id="reset-btn" class="ghost">Choose a different file</button>
+      </section>
+
+      <section id="progress" class="panel hidden">
+        <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+        <p id="progress-text" class="status">Loading FFmpeg…</p>
+      </section>
+
+      <section id="result" class="panel hidden">
+        <p class="success">Done.</p>
+        <a id="download-link" class="primary" download>Download</a>
+      </section>
+
+      <section id="log" class="log hidden">
+        <details>
+          <summary>FFmpeg log</summary>
+          <pre id="log-output"></pre>
+        </details>
+      </section>
+    </main>
+
+    <script type="module" src="audio.js"></script>
+  </body>
+</html>
