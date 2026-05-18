@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>File Converter</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-    <link rel="stylesheet" href="styles.css?v=10" />
+    <link rel="stylesheet" href="styles.css?v=11" />
   </head>
   <body>
     <main class="app">
@@ -47,8 +47,12 @@
               </select>
             </div>
             <div class="row">
-              <span class="label">Quality <span id="video-crf-value" class="muted">23</span></span>
+              <span class="label">
+                Quality
+                <span class="sublabel">lower = better, larger file</span>
+              </span>
               <input type="range" id="video-crf" min="18" max="32" step="1" value="23" />
+              <span class="slider-value" id="video-crf-value">23</span>
             </div>
             <div class="row">
               <span class="label">FPS</span>
@@ -58,7 +62,12 @@
                 <option value="30">30</option>
                 <option value="24">24</option>
                 <option value="15">15</option>
+                <option value="custom">Custom…</option>
               </select>
+            </div>
+            <div class="row hidden" id="video-fps-custom-row">
+              <span class="label">Custom FPS</span>
+              <input type="number" id="video-fps-custom" min="1" max="120" step="1" value="30" />
             </div>
             <div class="row">
               <span class="label">Dimensions</span>
@@ -70,7 +79,16 @@
                 <option value="1280x720">1280 × 720 (720p)</option>
                 <option value="854x480">854 × 480 (480p)</option>
                 <option value="640x360">640 × 360 (360p)</option>
+                <option value="custom">Custom…</option>
               </select>
+            </div>
+            <div class="row hidden" id="video-dims-custom-row">
+              <span class="label">Custom dims</span>
+              <div class="dim-inputs">
+                <input type="number" id="video-dims-custom-w" min="2" step="2" placeholder="W" />
+                <span class="muted">×</span>
+                <input type="number" id="video-dims-custom-h" min="2" step="2" placeholder="H" />
+              </div>
             </div>
             <div class="row hidden" id="video-stretch-row">
               <span class="label" title="Force exactly the chosen dimensions, distorting the image. Off = preserve aspect, never upscale.">Stretch to fit</span>
@@ -224,6 +242,6 @@
       </aside>
     </main>
 
-    <script type="module" src="app.js?v=10"></script>
+    <script type="module" src="app.js?v=11"></script>
   </body>
 </html>

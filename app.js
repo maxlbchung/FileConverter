@@ -71,14 +71,32 @@ videoCrf.addEventListener("input", () => {
   videoCrfValue.textContent = videoCrf.value;
 });
 
-// Stretch toggle is only relevant when a target dimension is selected.
+// Stretch toggle / custom-input rows are only shown when relevant.
 const videoDims = $("video-dims");
+const videoFps = $("video-fps");
 const videoStretchRow = $("video-stretch-row");
+const videoFpsCustomRow = $("video-fps-custom-row");
+const videoDimsCustomRow = $("video-dims-custom-row");
+
 const updateStretchVisibility = () => {
+  // Stretch only makes sense when a target dimension is set — including custom.
   videoStretchRow.classList.toggle("hidden", !videoDims.value);
 };
-videoDims.addEventListener("change", updateStretchVisibility);
+const updateFpsCustomVisibility = () => {
+  videoFpsCustomRow.classList.toggle("hidden", videoFps.value !== "custom");
+};
+const updateDimsCustomVisibility = () => {
+  videoDimsCustomRow.classList.toggle("hidden", videoDims.value !== "custom");
+};
+
+videoDims.addEventListener("change", () => {
+  updateDimsCustomVisibility();
+  updateStretchVisibility();
+});
+videoFps.addEventListener("change", updateFpsCustomVisibility);
 updateStretchVisibility();
+updateFpsCustomVisibility();
+updateDimsCustomVisibility();
 
 // ============================== Dropzones ==============================
 document.querySelectorAll(".dropzone").forEach((zone) => {
@@ -215,13 +233,26 @@ const intOrNull = (v) => {
 };
 
 const snapshotOptions = (kind) => {
-  if (kind === "video") return {
-    format: $("video-format").value,
-    crf: $("video-crf").value,
-    fps: $("video-fps").value || null,             // null = keep source
-    dims: $("video-dims").value || null,           // "WxH" or null = keep source
-    stretch: $("video-stretch").checked,           // true = force exact, may distort
-  };
+  if (kind === "video") {
+    let fps = videoFps.value || null;
+    if (fps === "custom") {
+      const v = intOrNull($("video-fps-custom").value);
+      fps = v ? String(v) : null;
+    }
+    let dims = videoDims.value || null;
+    if (dims === "custom") {
+      const w = intOrNull($("video-dims-custom-w").value);
+      const h = intOrNull($("video-dims-custom-h").value);
+      dims = (w && h) ? `${w}x${h}` : null;
+    }
+    return {
+      format: $("video-format").value,
+      crf: $("video-crf").value,
+      fps,                              // numeric string, e.g. "30", or null
+      dims,                             // "WxH" or null
+      stretch: $("video-stretch").checked,
+    };
+  }
   if (kind === "audio") return {
     format: audioFmt.value,
     bitrate: $("audio-bitrate").value,
@@ -678,16 +709,34 @@ const recomputeVideoConstraints = () => {
     if (dims.width < minW) minW = dims.width;
     if (dims.height < minH) minH = dims.height;
   }
+  // Disable preset options larger than the smallest source.
   let restoreToOriginal = false;
   for (const opt of videoDims.options) {
-    if (!opt.value) continue;
+    if (!opt.value || opt.value === "custom") continue;
     const [w, h] = opt.value.split("x").map(Number);
     opt.disabled = any && (w > minW || h > minH);
     if (opt.disabled && opt.selected) restoreToOriginal = true;
   }
   if (restoreToOriginal) {
     videoDims.value = "";
+    updateDimsCustomVisibility();
     updateStretchVisibility();
+  }
+  // Constrain the custom W/H inputs too — placeholder shows the cap.
+  const wIn = $("video-dims-custom-w");
+  const hIn = $("video-dims-custom-h");
+  if (any) {
+    wIn.max = String(minW);
+    hIn.max = String(minH);
+    wIn.placeholder = `W (≤ ${minW})`;
+    hIn.placeholder = `H (≤ ${minH})`;
+    if (intOrNull(wIn.value) && intOrNull(wIn.value) > minW) wIn.value = String(minW);
+    if (intOrNull(hIn.value) && intOrNull(hIn.value) > minH) hIn.value = String(minH);
+  } else {
+    wIn.removeAttribute("max");
+    hIn.removeAttribute("max");
+    wIn.placeholder = "W";
+    hIn.placeholder = "H";
   }
 };
 
