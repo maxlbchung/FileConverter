@@ -230,12 +230,14 @@ const updateCounts = () => {
   queueEmpty.classList.toggle("hidden", queueList.children.length > 0);
   completeEmpty.classList.toggle("hidden", complete.length > 0);
 
-  // Convert button: enabled only when there are queued items AND nothing's running.
-  // Clear button: enabled when queued items exist (regardless of running state).
+  // Convert: enabled when there are queued items AND nothing's running.
+  // Clear: enabled whenever any uploaded file hasn't finished yet
+  //        (queued OR currently running) — clicking it deselects everything.
   const hasQueued = queue.length > 0;
+  const hasAnyUploaded = hasQueued || activeJob !== null;
   convertBtn.disabled = !hasQueued || isProcessing;
   convertBtn.textContent = isProcessing ? "Converting…" : "Convert";
-  queueClearBtn.disabled = !hasQueued;
+  queueClearBtn.disabled = !hasAnyUploaded;
 };
 
 convertBtn.addEventListener("click", () => {
@@ -244,11 +246,18 @@ convertBtn.addEventListener("click", () => {
 });
 
 queueClearBtn.addEventListener("click", () => {
-  // Remove every queued (not-yet-running) item; leave the active job alone.
+  // Clear = deselect every uploaded file that hasn't completed yet.
+  // 1. Drop everything queued.
   for (const job of queue) {
     queueList.querySelector(`[data-id="${job.id}"]`)?.remove();
   }
   queue.length = 0;
+  // 2. Cancel the currently running job too (terminate ffmpeg).
+  //    The processor loop catches the rejection and disposes silently.
+  if (activeJob) {
+    activeJob.cancelled = true;
+    terminateFFmpeg();
+  }
   updateCounts();
 });
 
