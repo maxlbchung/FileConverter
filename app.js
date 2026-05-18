@@ -71,6 +71,15 @@ videoCrf.addEventListener("input", () => {
   videoCrfValue.textContent = videoCrf.value;
 });
 
+// Stretch toggle is only relevant when a target dimension is selected.
+const videoDims = $("video-dims");
+const videoStretchRow = $("video-stretch-row");
+const updateStretchVisibility = () => {
+  videoStretchRow.classList.toggle("hidden", !videoDims.value);
+};
+videoDims.addEventListener("change", updateStretchVisibility);
+updateStretchVisibility();
+
 // ============================== Dropzones ==============================
 document.querySelectorAll(".dropzone").forEach((zone) => {
   const input = zone.querySelector('input[type="file"]');
@@ -111,14 +120,22 @@ const addPendingFiles = (files, kind) => {
   }
   renderPending(kind);
 
-  // For images, probe dimensions in the background and recompute the
-  // max-width/max-height caps once we know them.
+  // Background-probe sources so we can constrain the settings UI to the
+  // smallest of the uploaded files' dimensions.
   if (kind === "image") {
     for (const file of added) {
       probeImageDimensions(file).then((dims) => {
         if (!dims) return;
         imageDims.set(file, dims);
         recomputeImageConstraints();
+      });
+    }
+  } else if (kind === "video") {
+    for (const file of added) {
+      probeVideoDimensions(file).then((dims) => {
+        if (!dims) return;
+        videoFileDims.set(file, dims);
+        recomputeVideoConstraints();
       });
     }
   }
@@ -128,12 +145,14 @@ const removePendingFile = (kind, index) => {
   pending[kind].splice(index, 1);
   renderPending(kind);
   if (kind === "image") recomputeImageConstraints();
+  if (kind === "video") recomputeVideoConstraints();
 };
 
 const clearPending = (kind) => {
   pending[kind].length = 0;
   renderPending(kind);
   if (kind === "image") recomputeImageConstraints();
+  if (kind === "video") recomputeVideoConstraints();
 };
 
 const renderPending = (kind) => {
@@ -199,8 +218,9 @@ const snapshotOptions = (kind) => {
   if (kind === "video") return {
     format: $("video-format").value,
     crf: $("video-crf").value,
-    fps: $("video-fps").value || null,            // null = keep source
-    maxHeight: intOrNull($("video-max-height").value),
+    fps: $("video-fps").value || null,             // null = keep source
+    dims: $("video-dims").value || null,           // "WxH" or null = keep source
+    stretch: $("video-stretch").checked,           // true = force exact, may distort
   };
   if (kind === "audio") return {
     format: audioFmt.value,
@@ -416,18 +436,28 @@ const readOutput = async (ffmpeg, path, mime) => {
 };
 
 // ============================== Video ==============================
-// Build a list of -vf filter expressions from FPS / max-height options.
-// `scale=-2:'min(H,ih)'` caps height at H without upscaling; -2 keeps width
-// proportional and even (required by libx264).
+// Build -vf filter expressions from FPS + dimensions + stretch options.
+// Without stretch: fit inside target box, never upscale, pad to even dims.
+// With stretch: force exact target dimensions even if it distorts/upscales.
 const buildVideoFilters = (opts) => {
   const f = [];
   if (opts.fps) f.push(`fps=${opts.fps}`);
-  if (opts.maxHeight) f.push(`scale=-2:'min(${opts.maxHeight},ih)'`);
+  if (opts.dims) {
+    const [w, h] = opts.dims.split("x");
+    if (opts.stretch) {
+      f.push(`scale=${w}:${h}`);
+    } else {
+      f.push(`scale=${w}:${h}:force_original_aspect_ratio=decrease`);
+      // libx264 needs even dimensions. Pad up to even if scale produced odd
+      // (preserves content; max 1px black border on each axis).
+      f.push("pad='ceil(iw/2)*2:ceil(ih/2)*2:0:0:black'");
+    }
+  }
   return f;
 };
 
 const hasCustomVideoSettings = (opts) =>
-  opts.fps !== null || opts.maxHeight !== null || opts.crf !== "23";
+  opts.fps !== null || opts.dims !== null || opts.crf !== "23";
 
 const buildVideoArgs = (input, output, opts, attempt) => {
   const { format, crf } = opts;
@@ -462,11 +492,18 @@ const buildVideoArgs = (input, output, opts, attempt) => {
         : ["-i", input, ...vf, "-c:v", "libvpx", "-b:v", "1M",
            "-c:a", "libvorbis", output];
     case "gif": {
-      // GIF always re-encodes; apply fps and max-height on top of palette pipeline.
+      // GIF always re-encodes. Apply fps + dims (preserve aspect, no upscale)
+      // on top of the palette pipeline.
       const fps = opts.fps || "12";
-      const heightExpr = opts.maxHeight ? `min(${opts.maxHeight},ih)` : "ih";
+      let scaleExpr = "scale=-2:'min(480,ih)':flags=lanczos";
+      if (opts.dims) {
+        const [w, h] = opts.dims.split("x");
+        scaleExpr = opts.stretch
+          ? `scale=${w}:${h}:flags=lanczos`
+          : `scale=${w}:${h}:force_original_aspect_ratio=decrease:flags=lanczos`;
+      }
       return ["-i", input,
-              "-vf", `fps=${fps},scale=-2:'${heightExpr}':flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse`,
+              "-vf", `fps=${fps},${scaleExpr},split[a][b];[a]palettegen[p];[b][p]paletteuse`,
               "-loop", "0", output];
     }
     default:
@@ -602,6 +639,56 @@ const processImage = async (job) => {
   job.outputName = job.file.name.replace(/\.[^.]+$/, "") + "." + outExt;
   job.outputSize = blob.size;
   job.progress = 1; updateJobRow(job);
+};
+
+// ---------- Probe video dimensions and constrain dim presets ----------
+// `<video>` can read metadata for MP4/WebM/OGG natively. MKV / AVI / etc. fail
+// silently; in that case we just leave all preset options enabled.
+const videoFileDims = new WeakMap(); // File → { width, height }
+
+const probeVideoDimensions = async (file) =>
+  new Promise((resolve) => {
+    const v = document.createElement("video");
+    v.preload = "metadata";
+    v.muted = true;
+    const url = URL.createObjectURL(file);
+    let done = false;
+    const finish = (dims) => {
+      if (done) return;
+      done = true;
+      URL.revokeObjectURL(url);
+      resolve(dims);
+    };
+    const timer = setTimeout(() => finish(null), 6000);
+    v.addEventListener("loadedmetadata", () => {
+      clearTimeout(timer);
+      const w = v.videoWidth, h = v.videoHeight;
+      finish(w && h ? { width: w, height: h } : null);
+    }, { once: true });
+    v.addEventListener("error", () => { clearTimeout(timer); finish(null); }, { once: true });
+    v.src = url;
+  });
+
+const recomputeVideoConstraints = () => {
+  let minW = Infinity, minH = Infinity, any = false;
+  for (const file of pending.video) {
+    const dims = videoFileDims.get(file);
+    if (!dims) continue;
+    any = true;
+    if (dims.width < minW) minW = dims.width;
+    if (dims.height < minH) minH = dims.height;
+  }
+  let restoreToOriginal = false;
+  for (const opt of videoDims.options) {
+    if (!opt.value) continue;
+    const [w, h] = opt.value.split("x").map(Number);
+    opt.disabled = any && (w > minW || h > minH);
+    if (opt.disabled && opt.selected) restoreToOriginal = true;
+  }
+  if (restoreToOriginal) {
+    videoDims.value = "";
+    updateStretchVisibility();
+  }
 };
 
 // ---------- Probe images and constrain max-width/height inputs ----------

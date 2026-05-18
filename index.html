@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>File Converter</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-    <link rel="stylesheet" href="styles.css?v=9" />
+    <link rel="stylesheet" href="styles.css?v=10" />
   </head>
   <body>
     <main class="app">
@@ -61,16 +61,23 @@
               </select>
             </div>
             <div class="row">
-              <span class="label">Max height</span>
-              <select id="video-max-height">
+              <span class="label">Dimensions</span>
+              <select id="video-dims">
                 <option value="">Original</option>
-                <option value="2160">2160p (4K)</option>
-                <option value="1440">1440p</option>
-                <option value="1080">1080p</option>
-                <option value="720">720p</option>
-                <option value="480">480p</option>
-                <option value="360">360p</option>
+                <option value="3840x2160">3840 × 2160 (4K)</option>
+                <option value="2560x1440">2560 × 1440 (1440p)</option>
+                <option value="1920x1080">1920 × 1080 (1080p)</option>
+                <option value="1280x720">1280 × 720 (720p)</option>
+                <option value="854x480">854 × 480 (480p)</option>
+                <option value="640x360">640 × 360 (360p)</option>
               </select>
+            </div>
+            <div class="row hidden" id="video-stretch-row">
+              <span class="label" title="Force exactly the chosen dimensions, distorting the image. Off = preserve aspect, never upscale.">Stretch to fit</span>
+              <label class="switch">
+                <input type="checkbox" id="video-stretch" />
+                <span class="switch-track"><span class="switch-thumb"></span></span>
+              </label>
             </div>
           </div>
 
@@ -217,6 +224,6 @@
       </aside>
     </main>
 
-    <script type="module" src="app.js?v=9"></script>
+    <script type="module" src="app.js?v=10"></script>
   </body>
 </html>
