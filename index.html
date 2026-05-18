@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>File Converter</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-    <link rel="stylesheet" href="styles.css?v=7" />
+    <link rel="stylesheet" href="styles.css?v=8" />
   </head>
   <body>
     <main class="app">
@@ -44,9 +44,17 @@
                 <path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v9.59l3.3-3.3a1 1 0 1 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.42L11 13.59V4a1 1 0 0 1 1-1Zm-7 15a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z"/>
               </svg>
               <p><strong>Drop videos here</strong></p>
-              <p class="hint">or click to choose · drops queue automatically</p>
+              <p class="hint">or click to choose</p>
             </div>
           </div>
+
+          <section class="pending" data-kind="video">
+            <div class="pending-list" id="video-pending-list"></div>
+            <div class="pending-actions">
+              <button class="action primary" data-action="convert" data-kind="video" disabled>Convert</button>
+              <button class="action ghost" data-action="clear" data-kind="video" disabled>Clear</button>
+            </div>
+          </section>
         </section>
 
         <!-- AUDIO -->
@@ -87,9 +95,17 @@
                 <path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v9.59l3.3-3.3a1 1 0 1 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.42L11 13.59V4a1 1 0 0 1 1-1Zm-7 15a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z"/>
               </svg>
               <p><strong>Drop audio files here</strong></p>
-              <p class="hint">or click to choose · queues automatically</p>
+              <p class="hint">or click to choose</p>
             </div>
           </div>
+
+          <section class="pending" data-kind="audio">
+            <div class="pending-list" id="audio-pending-list"></div>
+            <div class="pending-actions">
+              <button class="action primary" data-action="convert" data-kind="audio" disabled>Convert</button>
+              <button class="action ghost" data-action="clear" data-kind="audio" disabled>Clear</button>
+            </div>
+          </section>
         </section>
 
         <!-- IMAGE -->
@@ -124,6 +140,14 @@
               <p class="hint">or click to choose · multiple files supported</p>
             </div>
           </div>
+
+          <section class="pending" data-kind="image">
+            <div class="pending-list" id="image-pending-list"></div>
+            <div class="pending-actions">
+              <button class="action primary" data-action="convert" data-kind="image" disabled>Convert</button>
+              <button class="action ghost" data-action="clear" data-kind="image" disabled>Clear</button>
+            </div>
+          </section>
         </section>
       </section>
 
@@ -132,8 +156,6 @@
           <header class="side-header">
             <h3>Queue</h3>
             <span id="queue-count" class="badge">0</span>
-            <button class="tiny-btn primary" id="queue-convert" disabled>Convert</button>
-            <button class="tiny-btn" id="queue-clear" disabled>Clear</button>
           </header>
           <div id="queue-list" class="job-list"></div>
           <p class="side-empty" id="queue-empty">No files queued.</p>
@@ -151,6 +173,6 @@
       </aside>
     </main>
 
-    <script type="module" src="app.js?v=7"></script>
+    <script type="module" src="app.js?v=8"></script>
   </body>
 </html>

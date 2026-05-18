@@ -1,7 +1,10 @@
 import { loadFFmpeg, prepareInput, setFFmpegHandlers, terminateFFmpeg } from "./ffmpeg-loader.js";
 
 // ============================== State ==============================
-const queue = [];        // jobs waiting to be processed
+// Per-kind pending list: files picked but NOT yet committed to the queue.
+// User must click Convert (per tab, under the dropzone) to move them.
+const pending = { video: [], audio: [], image: [] };
+const queue = [];        // jobs waiting to be processed (post-commit)
 const complete = [];     // jobs done (success or error)
 let isProcessing = false;
 let nextId = 1;
@@ -69,7 +72,7 @@ document.querySelectorAll(".dropzone").forEach((zone) => {
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); }
   });
   input.addEventListener("change", (e) => {
-    enqueueFiles(e.target.files, zone.dataset.kind);
+    addPendingFiles(e.target.files, zone.dataset.kind);
     input.value = "";
   });
 
@@ -79,22 +82,71 @@ document.querySelectorAll(".dropzone").forEach((zone) => {
     zone.addEventListener(evt, (e) => { e.preventDefault(); zone.classList.remove("drag-over"); }));
   zone.addEventListener("drop", (e) => {
     e.preventDefault();
-    enqueueFiles(e.dataTransfer?.files, zone.dataset.kind);
+    addPendingFiles(e.dataTransfer?.files, zone.dataset.kind);
   });
 });
 
-// ============================== Enqueue ==============================
-const snapshotOptions = (kind) => {
-  if (kind === "video") return { format: $("video-format").value };
-  if (kind === "audio") return { format: audioFmt.value, bitrate: $("audio-bitrate").value };
-  if (kind === "image") return { format: imgFmt.value, quality: parseFloat(imgQuality.value) };
-  return {};
-};
+// ============================== Pending ==============================
+const pendingListEl = (kind) => document.getElementById(`${kind}-pending-list`);
+const pendingActionBtns = (kind) =>
+  document.querySelectorAll(`.pending button[data-kind="${kind}"]`);
 
-const enqueueFiles = (files, kind) => {
+const addPendingFiles = (files, kind) => {
   if (!files) return;
   for (const file of Array.from(files)) {
     if (!file) continue;
+    // dedupe by name+size+lastModified
+    const key = `${file.name}|${file.size}|${file.lastModified}`;
+    if (pending[kind].some((f) => `${f.name}|${f.size}|${f.lastModified}` === key)) continue;
+    pending[kind].push(file);
+  }
+  renderPending(kind);
+};
+
+const removePendingFile = (kind, index) => {
+  pending[kind].splice(index, 1);
+  renderPending(kind);
+};
+
+const clearPending = (kind) => {
+  pending[kind].length = 0;
+  renderPending(kind);
+};
+
+const renderPending = (kind) => {
+  const list = pendingListEl(kind);
+  list.innerHTML = "";
+  pending[kind].forEach((file, i) => {
+    const row = document.createElement("div");
+    row.className = "pending-item";
+    row.innerHTML = `
+      <span class="pending-name" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</span>
+      <span class="pending-size">${formatBytes(file.size)}</span>
+      <button class="pending-remove" title="Remove" aria-label="Remove">×</button>
+    `;
+    row.querySelector(".pending-remove").addEventListener("click", () => removePendingFile(kind, i));
+    list.appendChild(row);
+  });
+  const has = pending[kind].length > 0;
+  pendingActionBtns(kind).forEach((btn) => { btn.disabled = !has; });
+};
+
+// Wire the per-tab Convert / Clear buttons (one set per kind).
+document.querySelectorAll('.pending button[data-action]').forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const kind = btn.dataset.kind;
+    if (btn.dataset.action === "convert") {
+      commitPendingToQueue(kind);
+    } else if (btn.dataset.action === "clear") {
+      clearPending(kind);
+    }
+  });
+});
+
+const commitPendingToQueue = (kind) => {
+  const files = pending[kind].slice();
+  if (files.length === 0) return;
+  for (const file of files) {
     const job = {
       id: nextId++,
       file,
@@ -106,10 +158,20 @@ const enqueueFiles = (files, kind) => {
     queue.push(job);
     addQueueRow(job);
   }
+  pending[kind].length = 0;
+  renderPending(kind);
   updateCounts();
-  // Note: do NOT auto-start. User must click the Convert button. The exception
-  // is that the processor loop, once already running, naturally picks up any
-  // new items appended to the queue.
+  // Auto-start the processor on commit. It's idempotent: returns immediately
+  // if it's already draining the queue.
+  processQueue();
+};
+
+// ============================== Format / options snapshot ==============================
+const snapshotOptions = (kind) => {
+  if (kind === "video") return { format: $("video-format").value };
+  if (kind === "audio") return { format: audioFmt.value, bitrate: $("audio-bitrate").value };
+  if (kind === "image") return { format: imgFmt.value, quality: parseFloat(imgQuality.value) };
+  return {};
 };
 
 // ============================== Rendering ==============================
@@ -221,45 +283,12 @@ const removeJob = (id) => {
   }
 };
 
-const convertBtn = $("queue-convert");
-const queueClearBtn = $("queue-clear");
-
 const updateCounts = () => {
   queueCount.textContent = String(queueList.children.length);
   completeCount.textContent = String(complete.length);
   queueEmpty.classList.toggle("hidden", queueList.children.length > 0);
   completeEmpty.classList.toggle("hidden", complete.length > 0);
-
-  // Convert: enabled when there are queued items AND nothing's running.
-  // Clear: enabled whenever any uploaded file hasn't finished yet
-  //        (queued OR currently running) — clicking it deselects everything.
-  const hasQueued = queue.length > 0;
-  const hasAnyUploaded = hasQueued || activeJob !== null;
-  convertBtn.disabled = !hasQueued || isProcessing;
-  convertBtn.textContent = isProcessing ? "Converting…" : "Convert";
-  queueClearBtn.disabled = !hasAnyUploaded;
 };
-
-convertBtn.addEventListener("click", () => {
-  // Idempotent: if already running, processQueue() returns immediately.
-  processQueue();
-});
-
-queueClearBtn.addEventListener("click", () => {
-  // Clear = deselect every uploaded file that hasn't completed yet.
-  // 1. Drop everything queued.
-  for (const job of queue) {
-    queueList.querySelector(`[data-id="${job.id}"]`)?.remove();
-  }
-  queue.length = 0;
-  // 2. Cancel the currently running job too (terminate ffmpeg).
-  //    The processor loop catches the rejection and disposes silently.
-  if (activeJob) {
-    activeJob.cancelled = true;
-    terminateFFmpeg();
-  }
-  updateCounts();
-});
 
 $("clear-complete").addEventListener("click", () => {
   for (const job of complete) {
@@ -495,3 +524,6 @@ const processImage = async (job) => {
 
 // ============================== Init ==============================
 updateCounts();
+renderPending("video");
+renderPending("audio");
+renderPending("image");

@@ -159,6 +159,99 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 .dropzone-content .hint { font-size: 12px; color: var(--muted); }
 .dropzone svg { color: var(--accent); margin-bottom: 4px; }
 
+/* Pending: holds files that have been picked but not yet sent to the queue */
+.pending {
+  margin-top: 12px;
+}
+
+.pending-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.pending-list:empty { display: none; }
+
+.pending-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.pending-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.pending-size {
+  color: var(--muted);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.pending-remove {
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 6px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.pending-remove:hover { color: var(--danger); border-color: var(--danger); }
+
+.pending-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.action {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 8px 18px;
+  border: 1px solid transparent;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.action.primary {
+  background: var(--accent);
+  color: #0b1220;
+  font-weight: 600;
+  flex: 1;
+}
+.action.primary:hover:not(:disabled) { background: var(--accent-hover); }
+
+.action.ghost {
+  background: transparent;
+  color: var(--muted);
+  border-color: var(--border);
+}
+.action.ghost:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
+
+.action:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* Right sidebar */
 .rightbar {
   display: flex;
