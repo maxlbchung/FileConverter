@@ -67,6 +67,32 @@ export const prepareInput = async (ffmpeg, file) => {
 // The shipped dist/esm/worker.js has relative imports (./const.js, ./errors.js)
 // that won't resolve when the worker is constructed from a blob: URL. Fetch
 // the three files and inline-bundle them so the worker is self-contained.
+//
+// We also PATCH the worker's readFile to read large outputs in 256 MB chunks.
+// `ffmpeg.FS.readFile()` does `new Uint8Array(stat.size)` which throws
+// `RangeError: Array buffer allocation failed` for outputs >~2 GB (V8 cap).
+// Splitting into chunks keeps each allocation under the limit; the main
+// thread reassembles them into a Blob (which has no single-alloc cap).
+const CHUNKED_READ_FILE = `
+const readFile = ({ path, encoding }) => {
+  const stat = ffmpeg.FS.stat(path);
+  const total = stat.size;
+  const CHUNK = 256 * 1024 * 1024;
+  if (total <= CHUNK) return ffmpeg.FS.readFile(path, { encoding });
+  const stream = ffmpeg.FS.open(path, "r");
+  const chunks = [];
+  let pos = 0;
+  while (pos < total) {
+    const len = Math.min(CHUNK, total - pos);
+    const buf = new Uint8Array(len);
+    ffmpeg.FS.read(stream, buf, 0, len, pos);
+    chunks.push(buf);
+    pos += len;
+  }
+  ffmpeg.FS.close(stream);
+  return chunks;
+};`;
+
 const buildWorkerBlobURL = async () => {
   const [worker, consts, errors] = await Promise.all([
     fetch(`${FFMPEG_DIST}/worker.js`).then((r) => r.text()),
@@ -77,7 +103,11 @@ const buildWorkerBlobURL = async () => {
     /^\s*import\s*\{[\s\S]*?\}\s*from\s*['"]\.\/(?:const|errors)\.js['"];?\s*$/gm,
     "",
   );
-  const combined = `${consts}\n${errors}\n${stripped}`;
+  const patched = stripped.replace(
+    /const\s+readFile\s*=\s*\(\{\s*path,\s*encoding\s*\}\)\s*=>\s*ffmpeg\.FS\.readFile\(path,\s*\{\s*encoding\s*\}\);/,
+    CHUNKED_READ_FILE,
+  );
+  const combined = `${consts}\n${errors}\n${patched}`;
   return URL.createObjectURL(new Blob([combined], { type: "text/javascript" }));
 };
 

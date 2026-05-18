@@ -286,6 +286,30 @@ const processJob = (job) => {
   throw new Error(`Unknown kind: ${job.kind}`);
 };
 
+// Wrap whatever ffmpeg.readFile returned (Uint8Array OR array of Uint8Arrays
+// from our chunked-read worker patch) into a Blob. Blob can hold multiple
+// parts without copying or hitting any single-allocation cap.
+const buildOutputBlob = (data, mime) => {
+  if (Array.isArray(data)) return new Blob(data, { type: mime });
+  return new Blob([data.buffer || data], { type: mime });
+};
+
+const readOutput = async (ffmpeg, path, mime) => {
+  try {
+    const data = await ffmpeg.readFile(path);
+    return buildOutputBlob(data, mime);
+  } catch (err) {
+    if (err?.name === "RangeError" || /Array buffer allocation/i.test(err?.message || "")) {
+      throw new Error(
+        "Conversion finished but the output is too large to extract from the browser " +
+        "(>~2 GB even after chunking). Use a desktop tool like ffmpeg or HandBrake for " +
+        "files this big."
+      );
+    }
+    throw err;
+  }
+};
+
 // ============================== Video ==============================
 const buildVideoArgs = (input, output, format, attempt) => {
   const fast = attempt === 1;
@@ -343,8 +367,7 @@ const processVideo = async (job) => {
       rc = await ffmpeg.exec(buildVideoArgs(inputPath, workOutput, job.format, 2));
     }
     if (rc !== 0) throw new Error(`ffmpeg exited with code ${rc}`);
-    const data = await ffmpeg.readFile(workOutput);
-    const blob = new Blob([data.buffer], { type: videoMime[job.format] });
+    const blob = await readOutput(ffmpeg, workOutput, videoMime[job.format]);
     job.blobUrl = URL.createObjectURL(blob);
     job.outputName = job.file.name.replace(/\.[^.]+$/, "") + "." + job.format;
     job.outputSize = blob.size;
@@ -387,8 +410,7 @@ const processAudio = async (job) => {
   try {
     const rc = await ffmpeg.exec(buildAudioArgs(inputPath, workOutput, job.format, job.bitrate));
     if (rc !== 0) throw new Error(`ffmpeg exited with code ${rc}`);
-    const data = await ffmpeg.readFile(workOutput);
-    const blob = new Blob([data.buffer], { type: audioMime[job.format] });
+    const blob = await readOutput(ffmpeg, workOutput, audioMime[job.format]);
     job.blobUrl = URL.createObjectURL(blob);
     job.outputName = job.file.name.replace(/\.[^.]+$/, "") + "." + job.format;
     job.outputSize = blob.size;
