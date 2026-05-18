@@ -1,13 +1,35 @@
 import { FFmpeg } from "https://esm.sh/@ffmpeg/ffmpeg@0.12.10";
-import { fetchFile, toBlobURL } from "https://esm.sh/@ffmpeg/util@0.12.1";
+import { fetchFile } from "https://esm.sh/@ffmpeg/util@0.12.1";
 
-const FFMPEG_BASE = "https://esm.sh/@ffmpeg/ffmpeg@0.12.10/es2022";
-const CORE_BASE = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd";
+const FFMPEG_DIST = "https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm";
+const CORE_DIST = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm";
 
 let instance = null;
 let loading = null;
 
 export { fetchFile };
+
+// The shipped dist/esm/worker.js has relative imports (./const.js, ./errors.js)
+// that won't resolve when the worker is constructed from a blob: URL. Fetch
+// the three files and inline-bundle them so the worker is self-contained.
+const buildWorkerBlobURL = async () => {
+  const [worker, consts, errors] = await Promise.all([
+    fetch(`${FFMPEG_DIST}/worker.js`).then((r) => r.text()),
+    fetch(`${FFMPEG_DIST}/const.js`).then((r) => r.text()),
+    fetch(`${FFMPEG_DIST}/errors.js`).then((r) => r.text()),
+  ]);
+  const stripped = worker.replace(
+    /^\s*import\s*\{[\s\S]*?\}\s*from\s*['"]\.\/(?:const|errors)\.js['"];?\s*$/gm,
+    "",
+  );
+  const combined = `${consts}\n${errors}\n${stripped}`;
+  return URL.createObjectURL(new Blob([combined], { type: "text/javascript" }));
+};
+
+const fetchBlobURL = async (url, type) => {
+  const buf = await (await fetch(url)).arrayBuffer();
+  return URL.createObjectURL(new Blob([buf], { type }));
+};
 
 export const loadFFmpeg = async ({ onLog, onProgress, onStatus } = {}) => {
   if (instance) {
@@ -23,12 +45,10 @@ export const loadFFmpeg = async ({ onLog, onProgress, onStatus } = {}) => {
     if (onProgress) ff.on("progress", (e) => onProgress(e));
 
     onStatus?.("Loading FFmpeg core (first run only — ~30 MB)…");
-    // Worker must be constructed from a same-origin URL — fetch it cross-origin
-    // and wrap in a blob URL so `new Worker(blob:...)` works on GitHub Pages.
     const [coreURL, wasmURL, classWorkerURL] = await Promise.all([
-      toBlobURL(`${CORE_BASE}/ffmpeg-core.js`, "text/javascript"),
-      toBlobURL(`${CORE_BASE}/ffmpeg-core.wasm`, "application/wasm"),
-      toBlobURL(`${FFMPEG_BASE}/worker.js`, "text/javascript"),
+      fetchBlobURL(`${CORE_DIST}/ffmpeg-core.js`, "text/javascript"),
+      fetchBlobURL(`${CORE_DIST}/ffmpeg-core.wasm`, "application/wasm"),
+      buildWorkerBlobURL(),
     ]);
 
     await ff.load({ coreURL, wasmURL, classWorkerURL });
