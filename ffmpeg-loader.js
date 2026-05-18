@@ -117,3 +117,14 @@ export const loadFFmpeg = async ({ onStatus } = {}) => {
 
   return loading;
 };
+
+// Kill the worker. Any in-flight exec()/writeFile()/etc. promises reject with
+// ERROR_TERMINATED. Next loadFFmpeg() call will create a fresh instance.
+export const terminateFFmpeg = () => {
+  if (instance) {
+    try { instance.terminate(); } catch { }
+  }
+  instance = null;
+  loading = null;
+  activeHandlers = { onProgress: null, onLog: null };
+};

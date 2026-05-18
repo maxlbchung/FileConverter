@@ -1,10 +1,11 @@
-import { loadFFmpeg, prepareInput, setFFmpegHandlers } from "./ffmpeg-loader.js";
+import { loadFFmpeg, prepareInput, setFFmpegHandlers, terminateFFmpeg } from "./ffmpeg-loader.js";
 
 // ============================== State ==============================
-const queue = [];     // jobs waiting to be processed
-const complete = [];  // jobs done (success or error)
+const queue = [];        // jobs waiting to be processed
+const complete = [];     // jobs done (success or error)
 let isProcessing = false;
 let nextId = 1;
+let activeJob = null;    // the job currently running, if any
 
 // ============================== Helpers ==============================
 const $ = (id) => document.getElementById(id);
@@ -115,9 +116,17 @@ const jobInnerHTML = (job) => `
     <span class="job-kind">${job.kind}</span>
     <span class="job-name" title="${escapeHtml(job.file.name)}">${escapeHtml(job.file.name)} → ${job.format}</span>
     <span class="job-state"></span>
+    <button class="job-remove" title="Remove" aria-label="Remove">×</button>
   </div>
   <div class="job-bar"><div class="job-fill"></div></div>
 `;
+
+const wireRemoveButton = (el, jobId) => {
+  el.querySelector(".job-remove")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    removeJob(jobId);
+  });
+};
 
 const addQueueRow = (job) => {
   const el = document.createElement("div");
@@ -125,6 +134,7 @@ const addQueueRow = (job) => {
   el.dataset.id = String(job.id);
   el.dataset.state = job.status;
   el.innerHTML = jobInnerHTML(job);
+  wireRemoveButton(el, job.id);
   queueList.appendChild(el);
   updateJobRow(job);
 };
@@ -162,41 +172,51 @@ const moveJobToComplete = (job) => {
   card.dataset.id = String(job.id);
   card.dataset.state = job.status;
   card.innerHTML = jobInnerHTML(job);
+  wireRemoveButton(card, job.id);
 
-  const actions = document.createElement("div");
-  actions.className = "job-actions";
   if (job.status === "done") {
     const dl = document.createElement("a");
     dl.className = "job-download";
     dl.href = job.blobUrl;
     dl.download = job.outputName;
     dl.textContent = `Download ${job.outputName}`;
-    actions.appendChild(dl);
+    card.appendChild(dl);
   } else if (job.status === "error") {
     const err = document.createElement("p");
     err.className = "job-error";
     err.textContent = job.errorMessage || "Unknown error";
     card.appendChild(err);
   }
-  const rm = document.createElement("button");
-  rm.className = "job-remove";
-  rm.textContent = "×";
-  rm.title = "Remove";
-  rm.addEventListener("click", () => removeCompleteJob(job.id));
-  actions.appendChild(rm);
-  card.appendChild(actions);
   completeList.appendChild(card);
   updateJobRow(job);
 };
 
-const removeCompleteJob = (id) => {
-  const idx = complete.findIndex((j) => j.id === id);
-  if (idx < 0) return;
-  const job = complete[idx];
-  if (job.blobUrl) URL.revokeObjectURL(job.blobUrl);
-  complete.splice(idx, 1);
-  completeList.querySelector(`[data-id="${id}"]`)?.remove();
-  updateCounts();
+// Single entry point for the × button. Handles queued, running, or complete.
+const removeJob = (id) => {
+  // 1. Queued — splice out, never runs.
+  const qIdx = queue.findIndex((j) => j.id === id);
+  if (qIdx >= 0) {
+    queue.splice(qIdx, 1);
+    queueList.querySelector(`[data-id="${id}"]`)?.remove();
+    updateCounts();
+    return;
+  }
+  // 2. Currently running — terminate ffmpeg so it actually stops.
+  //    The processor loop catches the rejection and disposes the job silently.
+  if (activeJob?.id === id) {
+    activeJob.cancelled = true;
+    terminateFFmpeg();
+    return;
+  }
+  // 3. Already complete — revoke URL and drop from list.
+  const cIdx = complete.findIndex((j) => j.id === id);
+  if (cIdx >= 0) {
+    const job = complete[cIdx];
+    if (job.blobUrl) URL.revokeObjectURL(job.blobUrl);
+    complete.splice(cIdx, 1);
+    completeList.querySelector(`[data-id="${id}"]`)?.remove();
+    updateCounts();
+  }
 };
 
 const updateCounts = () => {
@@ -218,29 +238,44 @@ $("clear-complete").addEventListener("click", () => {
 });
 
 // ============================== Processor loop ==============================
+const isAbortLike = (err) =>
+  /terminated|FFmpeg\.terminate|aborted/i.test(err?.message || "") || err?.name === "AbortError";
+
 const processQueue = async () => {
   if (isProcessing) return;
   isProcessing = true;
   try {
     while (queue.length > 0) {
       const job = queue.shift();
+      activeJob = job;
       job.status = "running";
       updateJobRow(job);
       updateCounts();
       try {
         await processJob(job);
+        if (job.cancelled) throw new Error("cancelled");
         job.status = "done";
       } catch (err) {
+        if (job.cancelled || isAbortLike(err)) {
+          // User clicked × on the running job. Drop it silently and move on;
+          // ffmpeg was terminated, loadFFmpeg() will rebuild on next iteration.
+          queueList.querySelector(`[data-id="${job.id}"]`)?.remove();
+          activeJob = null;
+          updateCounts();
+          continue;
+        }
         console.error(err);
         job.status = "error";
         job.errorMessage = err?.message || String(err);
       }
+      activeJob = null;
       moveJobToComplete(job);
       complete.push(job);
       updateCounts();
     }
   } finally {
     isProcessing = false;
+    activeJob = null;
   }
 };
 
