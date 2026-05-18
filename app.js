@@ -64,6 +64,13 @@ imgQuality.addEventListener("input", () => {
 });
 updateImageQuality();
 
+// Video CRF slider — display the numeric value next to the label.
+const videoCrf = $("video-crf");
+const videoCrfValue = $("video-crf-value");
+videoCrf.addEventListener("input", () => {
+  videoCrfValue.textContent = videoCrf.value;
+});
+
 // ============================== Dropzones ==============================
 document.querySelectorAll(".dropzone").forEach((zone) => {
   const input = zone.querySelector('input[type="file"]');
@@ -93,24 +100,40 @@ const pendingActionBtns = (kind) =>
 
 const addPendingFiles = (files, kind) => {
   if (!files) return;
+  const added = [];
   for (const file of Array.from(files)) {
     if (!file) continue;
     // dedupe by name+size+lastModified
     const key = `${file.name}|${file.size}|${file.lastModified}`;
     if (pending[kind].some((f) => `${f.name}|${f.size}|${f.lastModified}` === key)) continue;
     pending[kind].push(file);
+    added.push(file);
   }
   renderPending(kind);
+
+  // For images, probe dimensions in the background and recompute the
+  // max-width/max-height caps once we know them.
+  if (kind === "image") {
+    for (const file of added) {
+      probeImageDimensions(file).then((dims) => {
+        if (!dims) return;
+        imageDims.set(file, dims);
+        recomputeImageConstraints();
+      });
+    }
+  }
 };
 
 const removePendingFile = (kind, index) => {
   pending[kind].splice(index, 1);
   renderPending(kind);
+  if (kind === "image") recomputeImageConstraints();
 };
 
 const clearPending = (kind) => {
   pending[kind].length = 0;
   renderPending(kind);
+  if (kind === "image") recomputeImageConstraints();
 };
 
 const renderPending = (kind) => {
@@ -167,10 +190,29 @@ const commitPendingToQueue = (kind) => {
 };
 
 // ============================== Format / options snapshot ==============================
+const intOrNull = (v) => {
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+
 const snapshotOptions = (kind) => {
-  if (kind === "video") return { format: $("video-format").value };
-  if (kind === "audio") return { format: audioFmt.value, bitrate: $("audio-bitrate").value };
-  if (kind === "image") return { format: imgFmt.value, quality: parseFloat(imgQuality.value) };
+  if (kind === "video") return {
+    format: $("video-format").value,
+    crf: $("video-crf").value,
+    fps: $("video-fps").value || null,            // null = keep source
+    maxHeight: intOrNull($("video-max-height").value),
+  };
+  if (kind === "audio") return {
+    format: audioFmt.value,
+    bitrate: $("audio-bitrate").value,
+    samplerate: $("audio-samplerate").value || null,
+  };
+  if (kind === "image") return {
+    format: imgFmt.value,
+    quality: parseFloat(imgQuality.value),
+    maxWidth: intOrNull($("image-max-width").value),
+    maxHeight: intOrNull($("image-max-height").value),
+  };
   return {};
 };
 
@@ -374,35 +416,59 @@ const readOutput = async (ffmpeg, path, mime) => {
 };
 
 // ============================== Video ==============================
-const buildVideoArgs = (input, output, format, attempt) => {
-  const fast = attempt === 1;
+// Build a list of -vf filter expressions from FPS / max-height options.
+// `scale=-2:'min(H,ih)'` caps height at H without upscaling; -2 keeps width
+// proportional and even (required by libx264).
+const buildVideoFilters = (opts) => {
+  const f = [];
+  if (opts.fps) f.push(`fps=${opts.fps}`);
+  if (opts.maxHeight) f.push(`scale=-2:'min(${opts.maxHeight},ih)'`);
+  return f;
+};
+
+const hasCustomVideoSettings = (opts) =>
+  opts.fps !== null || opts.maxHeight !== null || opts.crf !== "23";
+
+const buildVideoArgs = (input, output, opts, attempt) => {
+  const { format, crf } = opts;
+  // Remux fast path only allowed on attempt 1 AND when user hasn't touched
+  // any quality/fps/scale settings (those need a real re-encode).
+  const fast = attempt === 1 && !hasCustomVideoSettings(opts);
+  const filters = buildVideoFilters(opts);
+  const vf = filters.length ? ["-vf", filters.join(",")] : [];
+
   switch (format) {
     case "mp4":
       return fast
         ? ["-i", input, "-c", "copy", "-map", "0:v:0?", "-map", "0:a:0?",
            "-movflags", "+faststart", output]
-        : ["-i", input, "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
-           "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", output];
+        : ["-i", input, ...vf, "-c:v", "libx264", "-preset", "ultrafast",
+           "-crf", crf, "-c:a", "aac", "-b:a", "192k",
+           "-movflags", "+faststart", output];
     case "mov":
       return fast
         ? ["-i", input, "-c", "copy", "-map", "0:v:0?", "-map", "0:a:0?", output]
-        : ["-i", input, "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
-           "-c:a", "aac", "-b:a", "192k", output];
+        : ["-i", input, ...vf, "-c:v", "libx264", "-preset", "ultrafast",
+           "-crf", crf, "-c:a", "aac", "-b:a", "192k", output];
     case "mkv":
       return fast
         ? ["-i", input, "-c", "copy", output]
-        : ["-i", input, "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
-           "-c:a", "aac", "-b:a", "192k", output];
+        : ["-i", input, ...vf, "-c:v", "libx264", "-preset", "ultrafast",
+           "-crf", crf, "-c:a", "aac", "-b:a", "192k", output];
     case "webm":
       return fast
-        ? ["-i", input, "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "32",
+        ? ["-i", input, "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", crf,
            "-c:a", "libopus", "-b:a", "128k", output]
-        : ["-i", input, "-c:v", "libvpx", "-b:v", "1M",
+        : ["-i", input, ...vf, "-c:v", "libvpx", "-b:v", "1M",
            "-c:a", "libvorbis", output];
-    case "gif":
+    case "gif": {
+      // GIF always re-encodes; apply fps and max-height on top of palette pipeline.
+      const fps = opts.fps || "12";
+      const heightExpr = opts.maxHeight ? `min(${opts.maxHeight},ih)` : "ih";
       return ["-i", input,
-              "-vf", "fps=12,scale=480:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse",
+              "-vf", `fps=${fps},scale=-2:'${heightExpr}':flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse`,
               "-loop", "0", output];
+    }
     default:
       throw new Error(`Unknown video format: ${format}`);
   }
@@ -424,10 +490,10 @@ const processVideo = async (job) => {
   const { inputPath, cleanup } = await prepareInput(ffmpeg, job.file);
   const workOutput = `output_${job.id}.${job.format}`;
   try {
-    let rc = await ffmpeg.exec(buildVideoArgs(inputPath, workOutput, job.format, 1));
+    let rc = await ffmpeg.exec(buildVideoArgs(inputPath, workOutput, job, 1));
     if (rc !== 0) {
       // remux failed (or VP9 too slow / unsupported codecs) — try full re-encode
-      rc = await ffmpeg.exec(buildVideoArgs(inputPath, workOutput, job.format, 2));
+      rc = await ffmpeg.exec(buildVideoArgs(inputPath, workOutput, job, 2));
     }
     if (rc !== 0) throw new Error(`ffmpeg exited with code ${rc}`);
     const blob = await readOutput(ffmpeg, workOutput, videoMime[job.format]);
@@ -442,15 +508,17 @@ const processVideo = async (job) => {
 };
 
 // ============================== Audio ==============================
-const buildAudioArgs = (input, output, format, bitrate) => {
+const buildAudioArgs = (input, output, opts) => {
+  const { format, bitrate, samplerate } = opts;
   const base = ["-i", input, "-vn"];
+  const sr = samplerate ? ["-ar", samplerate] : [];
   switch (format) {
-    case "mp3": return [...base, "-c:a", "libmp3lame", "-b:a", bitrate, output];
-    case "wav": return [...base, "-c:a", "pcm_s16le", output];
-    case "flac": return [...base, "-c:a", "flac", output];
-    case "ogg": return [...base, "-c:a", "libvorbis", "-b:a", bitrate, output];
-    case "m4a": return [...base, "-c:a", "aac", "-b:a", bitrate, output];
-    case "opus": return [...base, "-c:a", "libopus", "-b:a", bitrate, output];
+    case "mp3": return [...base, ...sr, "-c:a", "libmp3lame", "-b:a", bitrate, output];
+    case "wav": return [...base, ...sr, "-c:a", "pcm_s16le", output];
+    case "flac": return [...base, ...sr, "-c:a", "flac", output];
+    case "ogg": return [...base, ...sr, "-c:a", "libvorbis", "-b:a", bitrate, output];
+    case "m4a": return [...base, ...sr, "-c:a", "aac", "-b:a", bitrate, output];
+    case "opus": return [...base, ...sr, "-c:a", "libopus", "-b:a", bitrate, output];
     default: throw new Error(`Unknown audio format: ${format}`);
   }
 };
@@ -471,7 +539,7 @@ const processAudio = async (job) => {
   const { inputPath, cleanup } = await prepareInput(ffmpeg, job.file);
   const workOutput = `output_${job.id}.${job.format}`;
   try {
-    const rc = await ffmpeg.exec(buildAudioArgs(inputPath, workOutput, job.format, job.bitrate));
+    const rc = await ffmpeg.exec(buildAudioArgs(inputPath, workOutput, job));
     if (rc !== 0) throw new Error(`ffmpeg exited with code ${rc}`);
     const blob = await readOutput(ffmpeg, workOutput, audioMime[job.format]);
     job.blobUrl = URL.createObjectURL(blob);
@@ -485,27 +553,41 @@ const processAudio = async (job) => {
 };
 
 // ============================== Image (Canvas) ==============================
+const loadImageBitmap = (file) => new Promise((resolve, reject) => {
+  const i = new Image();
+  const url = URL.createObjectURL(file);
+  i.onload = () => { URL.revokeObjectURL(url); resolve(i); };
+  i.onerror = () => { URL.revokeObjectURL(url); reject(new Error(`Could not decode ${file.name}`)); };
+  i.src = url;
+});
+
 const processImage = async (job) => {
   job.progress = 0.2; updateJobRow(job);
-  const img = await new Promise((resolve, reject) => {
-    const i = new Image();
-    const url = URL.createObjectURL(job.file);
-    i.onload = () => { URL.revokeObjectURL(url); resolve(i); };
-    i.onerror = () => { URL.revokeObjectURL(url); reject(new Error(`Could not decode ${job.file.name}`)); };
-    i.src = url;
-  });
+  const img = await loadImageBitmap(job.file);
   job.progress = 0.5; updateJobRow(job);
 
+  // Compute target dimensions, never upscaling. Either maxWidth or maxHeight
+  // (or both) may be set; we honor whichever's more restrictive.
+  let w = img.naturalWidth;
+  let h = img.naturalHeight;
+  const sw = job.maxWidth || Infinity;
+  const sh = job.maxHeight || Infinity;
+  if (sw < w || sh < h) {
+    const scale = Math.min(sw / w, sh / h, 1);
+    w = Math.max(1, Math.round(w * scale));
+    h = Math.max(1, Math.round(h * scale));
+  }
+
   const canvas = document.createElement("canvas");
-  canvas.width = img.naturalWidth;
-  canvas.height = img.naturalHeight;
+  canvas.width = w;
+  canvas.height = h;
   const ctx = canvas.getContext("2d");
   if (job.format === "jpeg") {
     // JPEG has no alpha — fill white so transparent PNGs don't render black
     ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, w, h);
   }
-  ctx.drawImage(img, 0, 0);
+  ctx.drawImage(img, 0, 0, w, h);
 
   const mime = { png: "image/png", jpeg: "image/jpeg", webp: "image/webp" }[job.format];
   const blob = await new Promise((resolve, reject) => {
@@ -520,6 +602,48 @@ const processImage = async (job) => {
   job.outputName = job.file.name.replace(/\.[^.]+$/, "") + "." + outExt;
   job.outputSize = blob.size;
   job.progress = 1; updateJobRow(job);
+};
+
+// ---------- Probe images and constrain max-width/height inputs ----------
+const imageDims = new WeakMap(); // File → { width, height }
+
+const probeImageDimensions = async (file) => {
+  try {
+    const img = await loadImageBitmap(file);
+    return { width: img.naturalWidth, height: img.naturalHeight };
+  } catch {
+    return null;
+  }
+};
+
+const imageMaxWidth = $("image-max-width");
+const imageMaxHeight = $("image-max-height");
+
+const recomputeImageConstraints = () => {
+  let minW = Infinity, minH = Infinity, any = false;
+  for (const file of pending.image) {
+    const dims = imageDims.get(file);
+    if (!dims) continue;
+    any = true;
+    if (dims.width < minW) minW = dims.width;
+    if (dims.height < minH) minH = dims.height;
+  }
+  if (any) {
+    imageMaxWidth.max = String(minW);
+    imageMaxWidth.placeholder = `Original (≤ ${minW})`;
+    imageMaxHeight.max = String(minH);
+    imageMaxHeight.placeholder = `Original (≤ ${minH})`;
+    // Clamp existing values to the new cap.
+    const w = intOrNull(imageMaxWidth.value);
+    const h = intOrNull(imageMaxHeight.value);
+    if (w && w > minW) imageMaxWidth.value = String(minW);
+    if (h && h > minH) imageMaxHeight.value = String(minH);
+  } else {
+    imageMaxWidth.removeAttribute("max");
+    imageMaxWidth.placeholder = "Original";
+    imageMaxHeight.removeAttribute("max");
+    imageMaxHeight.placeholder = "Original";
+  }
 };
 
 // ============================== Init ==============================

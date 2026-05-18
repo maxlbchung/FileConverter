@@ -128,11 +128,30 @@ select {
   padding: 6px 10px;
   font: inherit;
   cursor: pointer;
+  min-width: 140px;
 }
 
 select:hover { border-color: var(--accent); }
 
 input[type="range"] { accent-color: var(--accent); width: 160px; }
+
+input[type="number"] {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font: inherit;
+  width: 110px;
+  text-align: right;
+}
+input[type="number"]:focus { outline: none; border-color: var(--accent); }
+/* Hide spinner arrows in WebKit/Blink */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; }
+
+.panel.settings { margin-top: 12px; }
 
 /* Dropzone */
 .dropzone {

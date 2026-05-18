@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>File Converter</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-    <link rel="stylesheet" href="styles.css?v=8" />
+    <link rel="stylesheet" href="styles.css?v=9" />
   </head>
   <body>
     <main class="app">
@@ -24,19 +24,6 @@
             <p class="subtitle">MKV, MP4, WebM, MOV, AVI → MP4, WebM, MKV, MOV, GIF</p>
           </header>
 
-          <div class="panel">
-            <div class="row">
-              <span class="label">Convert to</span>
-              <select id="video-format">
-                <option value="mp4">MP4 (H.264 / AAC)</option>
-                <option value="webm">WebM (VP9 / Opus)</option>
-                <option value="mkv">MKV</option>
-                <option value="mov">MOV</option>
-                <option value="gif">GIF (animated)</option>
-              </select>
-            </div>
-          </div>
-
           <div class="dropzone" data-kind="video" tabindex="0">
             <input type="file" accept="video/*,.mkv,.mp4,.webm,.mov,.avi,.flv,.m4v,.wmv" multiple hidden />
             <div class="dropzone-content">
@@ -45,6 +32,45 @@
               </svg>
               <p><strong>Drop videos here</strong></p>
               <p class="hint">or click to choose</p>
+            </div>
+          </div>
+
+          <div class="panel settings">
+            <div class="row">
+              <span class="label">Format</span>
+              <select id="video-format">
+                <option value="mp4">MP4 (H.264 / AAC)</option>
+                <option value="webm">WebM (VP9 / Opus)</option>
+                <option value="mkv">MKV</option>
+                <option value="mov">MOV</option>
+                <option value="gif">GIF (animated)</option>
+              </select>
+            </div>
+            <div class="row">
+              <span class="label">Quality <span id="video-crf-value" class="muted">23</span></span>
+              <input type="range" id="video-crf" min="18" max="32" step="1" value="23" />
+            </div>
+            <div class="row">
+              <span class="label">FPS</span>
+              <select id="video-fps">
+                <option value="">Original</option>
+                <option value="60">60</option>
+                <option value="30">30</option>
+                <option value="24">24</option>
+                <option value="15">15</option>
+              </select>
+            </div>
+            <div class="row">
+              <span class="label">Max height</span>
+              <select id="video-max-height">
+                <option value="">Original</option>
+                <option value="2160">2160p (4K)</option>
+                <option value="1440">1440p</option>
+                <option value="1080">1080p</option>
+                <option value="720">720p</option>
+                <option value="480">480p</option>
+                <option value="360">360p</option>
+              </select>
             </div>
           </div>
 
@@ -64,9 +90,20 @@
             <p class="subtitle">MP3, WAV, FLAC, OGG, M4A, OPUS — any to any</p>
           </header>
 
-          <div class="panel">
+          <div class="dropzone" data-kind="audio" tabindex="0">
+            <input type="file" accept="audio/*,.mp3,.wav,.flac,.ogg,.m4a,.opus,.aac,.wma" multiple hidden />
+            <div class="dropzone-content">
+              <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
+                <path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v9.59l3.3-3.3a1 1 0 1 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.42L11 13.59V4a1 1 0 0 1 1-1Zm-7 15a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z"/>
+              </svg>
+              <p><strong>Drop audio files here</strong></p>
+              <p class="hint">or click to choose</p>
+            </div>
+          </div>
+
+          <div class="panel settings">
             <div class="row">
-              <span class="label">Convert to</span>
+              <span class="label">Format</span>
               <select id="audio-format">
                 <option value="mp3">MP3</option>
                 <option value="wav">WAV (PCM)</option>
@@ -86,16 +123,15 @@
                 <option value="320k">320 kbps</option>
               </select>
             </div>
-          </div>
-
-          <div class="dropzone" data-kind="audio" tabindex="0">
-            <input type="file" accept="audio/*,.mp3,.wav,.flac,.ogg,.m4a,.opus,.aac,.wma" multiple hidden />
-            <div class="dropzone-content">
-              <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
-                <path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v9.59l3.3-3.3a1 1 0 1 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.42L11 13.59V4a1 1 0 0 1 1-1Zm-7 15a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z"/>
-              </svg>
-              <p><strong>Drop audio files here</strong></p>
-              <p class="hint">or click to choose</p>
+            <div class="row">
+              <span class="label">Sample rate</span>
+              <select id="audio-samplerate">
+                <option value="">Original</option>
+                <option value="48000">48 kHz</option>
+                <option value="44100">44.1 kHz</option>
+                <option value="32000">32 kHz</option>
+                <option value="22050">22.05 kHz</option>
+              </select>
             </div>
           </div>
 
@@ -115,9 +151,20 @@
             <p class="subtitle">PNG, JPEG, WebP, GIF, BMP → PNG, JPEG, WebP</p>
           </header>
 
-          <div class="panel">
+          <div class="dropzone" data-kind="image" tabindex="0">
+            <input type="file" accept="image/*" multiple hidden />
+            <div class="dropzone-content">
+              <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
+                <path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v9.59l3.3-3.3a1 1 0 1 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.42L11 13.59V4a1 1 0 0 1 1-1Zm-7 15a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z"/>
+              </svg>
+              <p><strong>Drop images here</strong></p>
+              <p class="hint">or click to choose · multiple files supported</p>
+            </div>
+          </div>
+
+          <div class="panel settings">
             <div class="row">
-              <span class="label">Convert to</span>
+              <span class="label">Format</span>
               <select id="image-format">
                 <option value="png">PNG (lossless)</option>
                 <option value="jpeg" selected>JPEG</option>
@@ -128,16 +175,13 @@
               <span class="label">Quality <span id="image-quality-value" class="muted">0.92</span></span>
               <input id="image-quality" type="range" min="0.1" max="1" step="0.01" value="0.92" />
             </div>
-          </div>
-
-          <div class="dropzone" data-kind="image" tabindex="0">
-            <input type="file" accept="image/*" multiple hidden />
-            <div class="dropzone-content">
-              <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
-                <path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v9.59l3.3-3.3a1 1 0 1 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.42L11 13.59V4a1 1 0 0 1 1-1Zm-7 15a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z"/>
-              </svg>
-              <p><strong>Drop images here</strong></p>
-              <p class="hint">or click to choose · multiple files supported</p>
+            <div class="row">
+              <span class="label">Max width</span>
+              <input id="image-max-width" type="number" min="1" placeholder="Original" />
+            </div>
+            <div class="row">
+              <span class="label">Max height</span>
+              <input id="image-max-height" type="number" min="1" placeholder="Original" />
             </div>
           </div>
 
@@ -173,6 +217,6 @@
       </aside>
     </main>
 
-    <script type="module" src="app.js?v=8"></script>
+    <script type="module" src="app.js?v=9"></script>
   </body>
 </html>
