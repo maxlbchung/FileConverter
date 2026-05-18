@@ -1,5 +1,4 @@
 import { FFmpeg } from "https://esm.sh/@ffmpeg/ffmpeg@0.12.10";
-import { fetchFile } from "https://esm.sh/@ffmpeg/util@0.12.1";
 
 const FFMPEG_DIST = "https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm";
 const CORE_DIST = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm";
@@ -7,7 +6,20 @@ const CORE_DIST = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm";
 let instance = null;
 let loading = null;
 
-export { fetchFile };
+// Replacement for @ffmpeg/util's fetchFile. Its implementation uses the legacy
+// FileReader API which fails on large files in some browsers with the cryptic
+// "File could not be read! Code=-1". File.arrayBuffer() is the modern API and
+// handles big files reliably.
+export const fetchFile = async (file) => {
+  if (typeof file === "string" || file instanceof URL) {
+    const buf = await (await fetch(file)).arrayBuffer();
+    return new Uint8Array(buf);
+  }
+  if (file instanceof Blob || file instanceof File) {
+    return new Uint8Array(await file.arrayBuffer());
+  }
+  throw new Error("fetchFile: unsupported input type");
+};
 
 // The shipped dist/esm/worker.js has relative imports (./const.js, ./errors.js)
 // that won't resolve when the worker is constructed from a blob: URL. Fetch
