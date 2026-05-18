@@ -1,4 +1,4 @@
-import { loadFFmpeg, fetchFile } from "./ffmpeg-loader.js";
+import { loadFFmpeg, prepareInput } from "./ffmpeg-loader.js";
 
 const $ = (id) => document.getElementById(id);
 const dropzone = $("dropzone");
@@ -123,6 +123,7 @@ const convert = async () => {
   progressFill.style.background = "var(--accent)";
   logOutput.textContent = "";
 
+  let cleanupMount = null;
   try {
     const ffmpeg = await loadFFmpeg({
       onLog: appendLog,
@@ -130,28 +131,26 @@ const convert = async () => {
       onStatus: setStatus,
     });
 
-    const extMatch = currentFile.name.match(/\.([^.]+)$/);
-    const inputExt = extMatch ? extMatch[1].toLowerCase() : "bin";
-    const inputName = `input.${inputExt}`;
     const outputName = currentFile.name.replace(/\.[^.]+$/, "") + `.${format}`;
     const workOutput = `output.${format}`;
 
-    setStatus("Reading file…");
-    await ffmpeg.writeFile(inputName, await fetchFile(currentFile));
+    setStatus("Mounting file…");
+    const { inputPath, cleanup } = await prepareInput(ffmpeg, currentFile);
+    cleanupMount = cleanup;
 
     // Try fast path (remux for mp4/mov/mkv, default encoders for webm/gif).
     setStatus(format === "gif" ? "Encoding GIF…" : "Converting…");
-    let exitCode = await ffmpeg.exec(buildArgs(inputName, workOutput, format, 1));
+    let exitCode = await ffmpeg.exec(buildArgs(inputPath, workOutput, format, 1));
 
     // Fallback to full re-encode if remux failed and format supports it.
     if (exitCode !== 0 && format !== "gif" && format !== "webm") {
       setStatus("Codec not directly compatible — re-encoding (slower)…");
       progressFill.style.width = "0%";
-      exitCode = await ffmpeg.exec(buildArgs(inputName, workOutput, format, 2));
+      exitCode = await ffmpeg.exec(buildArgs(inputPath, workOutput, format, 2));
     } else if (exitCode !== 0 && format === "webm") {
       setStatus("VP9 failed — trying VP8…");
       progressFill.style.width = "0%";
-      exitCode = await ffmpeg.exec(buildArgs(inputName, workOutput, format, 2));
+      exitCode = await ffmpeg.exec(buildArgs(inputPath, workOutput, format, 2));
     }
 
     if (exitCode !== 0) throw new Error(`FFmpeg exited with code ${exitCode}`);
@@ -168,7 +167,6 @@ const convert = async () => {
     downloadLink.download = outputName;
     downloadLink.textContent = `Download ${outputName} (${formatBytes(blob.size)})`;
 
-    await ffmpeg.deleteFile(inputName).catch(() => {});
     await ffmpeg.deleteFile(workOutput).catch(() => {});
 
     progress.classList.add("hidden");
@@ -178,6 +176,7 @@ const convert = async () => {
     setStatus(`Error: ${err.message || err}`, true);
     progressFill.style.background = "var(--danger)";
   } finally {
+    if (cleanupMount) await cleanupMount();
     convertBtn.disabled = false;
     resetBtn.disabled = false;
     outputFormat.disabled = false;

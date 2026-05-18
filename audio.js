@@ -1,4 +1,4 @@
-import { loadFFmpeg, fetchFile } from "./ffmpeg-loader.js";
+import { loadFFmpeg, prepareInput } from "./ffmpeg-loader.js";
 
 const $ = (id) => document.getElementById(id);
 const dropzone = $("dropzone");
@@ -117,6 +117,7 @@ const convert = async () => {
   progressFill.style.background = "var(--accent)";
   logOutput.textContent = "";
 
+  let cleanupMount = null;
   try {
     const ffmpeg = await loadFFmpeg({
       onLog: appendLog,
@@ -124,17 +125,15 @@ const convert = async () => {
       onStatus: setStatus,
     });
 
-    const extMatch = currentFile.name.match(/\.([^.]+)$/);
-    const inputExt = extMatch ? extMatch[1].toLowerCase() : "bin";
-    const inputName = `input.${inputExt}`;
     const outputName = currentFile.name.replace(/\.[^.]+$/, "") + `.${format}`;
     const workOutput = `output.${format}`;
 
-    setStatus("Reading file…");
-    await ffmpeg.writeFile(inputName, await fetchFile(currentFile));
+    setStatus("Mounting file…");
+    const { inputPath, cleanup } = await prepareInput(ffmpeg, currentFile);
+    cleanupMount = cleanup;
 
     setStatus("Converting…");
-    const exitCode = await ffmpeg.exec(buildArgs(inputName, workOutput, format, bitrate));
+    const exitCode = await ffmpeg.exec(buildArgs(inputPath, workOutput, format, bitrate));
     if (exitCode !== 0) throw new Error(`FFmpeg exited with code ${exitCode}`);
 
     setStatus("Finalizing…");
@@ -149,7 +148,6 @@ const convert = async () => {
     downloadLink.download = outputName;
     downloadLink.textContent = `Download ${outputName} (${formatBytes(blob.size)})`;
 
-    await ffmpeg.deleteFile(inputName).catch(() => {});
     await ffmpeg.deleteFile(workOutput).catch(() => {});
 
     progress.classList.add("hidden");
@@ -159,6 +157,7 @@ const convert = async () => {
     setStatus(`Error: ${err.message || err}`, true);
     progressFill.style.background = "var(--danger)";
   } finally {
+    if (cleanupMount) await cleanupMount();
     convertBtn.disabled = false;
     resetBtn.disabled = false;
     outputFormat.disabled = false;
