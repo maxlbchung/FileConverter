@@ -5,7 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>File Converter</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-    <link rel="stylesheet" href="styles.css?v=13" />
+    <!-- Registers a service worker that adds COOP/COEP headers so we can
+         enable cross-origin isolation → SharedArrayBuffer → multi-threaded
+         ffmpeg (4 GB heap, faster encoding). First load auto-reloads once. -->
+    <script src="coi-serviceworker.js"></script>
+    <link rel="stylesheet" href="styles.css?v=14" />
   </head>
   <body>
     <main class="app">
@@ -250,6 +254,6 @@
       </aside>
     </main>
 
-    <script type="module" src="app.js?v=13"></script>
+    <script type="module" src="app.js?v=14"></script>
   </body>
 </html>

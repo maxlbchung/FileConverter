@@ -1,7 +1,11 @@
 import { FFmpeg } from "https://esm.sh/@ffmpeg/ffmpeg@0.12.10";
 
 const FFMPEG_DIST = "https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm";
-const CORE_DIST = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm";
+// Two cores: single-threaded (always works, ~2 GB heap) and multi-threaded
+// (needs cross-origin isolation, ~4 GB heap, much faster x264). We pick at
+// runtime based on whether the COI service worker has isolated us.
+const CORE_ST = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm";
+const CORE_MT = "https://unpkg.com/@ffmpeg/core-mt@0.12.6/dist/esm";
 
 let instance = null;
 let loading = null;
@@ -124,6 +128,9 @@ export const setFFmpegHandlers = ({ onProgress = null, onLog = null } = {}) => {
   activeHandlers = { onProgress, onLog };
 };
 
+export const isMultiThreaded = () =>
+  typeof crossOriginIsolated !== "undefined" && crossOriginIsolated;
+
 export const loadFFmpeg = async ({ onStatus } = {}) => {
   if (instance) return instance;
   if (loading) return loading;
@@ -133,14 +140,27 @@ export const loadFFmpeg = async ({ onStatus } = {}) => {
     ff.on("log", ({ message }) => { activeHandlers.onLog?.(message); });
     ff.on("progress", (e) => { activeHandlers.onProgress?.(e); });
 
-    onStatus?.("Loading FFmpeg core (first run only — ~30 MB)…");
-    const [coreURL, wasmURL, classWorkerURL] = await Promise.all([
-      fetchBlobURL(`${CORE_DIST}/ffmpeg-core.js`, "text/javascript"),
-      fetchBlobURL(`${CORE_DIST}/ffmpeg-core.wasm`, "application/wasm"),
-      buildWorkerBlobURL(),
-    ]);
+    const useMT = isMultiThreaded();
+    const CORE = useMT ? CORE_MT : CORE_ST;
+    onStatus?.(useMT
+      ? "Loading FFmpeg multi-threaded core (first run only — ~30 MB)…"
+      : "Loading FFmpeg core (first run only — ~30 MB)…");
 
-    await ff.load({ coreURL, wasmURL, classWorkerURL });
+    const promises = [
+      fetchBlobURL(`${CORE}/ffmpeg-core.js`, "text/javascript"),
+      fetchBlobURL(`${CORE}/ffmpeg-core.wasm`, "application/wasm"),
+      buildWorkerBlobURL(),
+    ];
+    if (useMT) {
+      // MT core spawns pthread workers from this URL.
+      promises.push(fetchBlobURL(`${CORE}/ffmpeg-core.worker.js`, "text/javascript"));
+    }
+    const [coreURL, wasmURL, classWorkerURL, workerURL] = await Promise.all(promises);
+
+    const loadOpts = { coreURL, wasmURL, classWorkerURL };
+    if (workerURL) loadOpts.workerURL = workerURL;
+
+    await ff.load(loadOpts);
     instance = ff;
     return ff;
   })();
