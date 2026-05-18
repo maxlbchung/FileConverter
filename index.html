@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>File Converter</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-    <link rel="stylesheet" href="styles.css?v=5" />
+    <link rel="stylesheet" href="styles.css?v=6" />
   </head>
   <body>
     <main class="app">
@@ -132,6 +132,8 @@
           <header class="side-header">
             <h3>Queue</h3>
             <span id="queue-count" class="badge">0</span>
+            <button class="tiny-btn primary" id="queue-convert" disabled>Convert</button>
+            <button class="tiny-btn" id="queue-clear" disabled>Clear</button>
           </header>
           <div id="queue-list" class="job-list"></div>
           <p class="side-empty" id="queue-empty">No files queued.</p>
@@ -149,6 +151,6 @@
       </aside>
     </main>
 
-    <script type="module" src="app.js?v=5"></script>
+    <script type="module" src="app.js?v=6"></script>
   </body>
 </html>

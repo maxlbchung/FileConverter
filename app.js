@@ -107,7 +107,9 @@ const enqueueFiles = (files, kind) => {
     addQueueRow(job);
   }
   updateCounts();
-  processQueue();
+  // Note: do NOT auto-start. User must click the Convert button. The exception
+  // is that the processor loop, once already running, naturally picks up any
+  // new items appended to the queue.
 };
 
 // ============================== Rendering ==============================
@@ -219,14 +221,36 @@ const removeJob = (id) => {
   }
 };
 
+const convertBtn = $("queue-convert");
+const queueClearBtn = $("queue-clear");
+
 const updateCounts = () => {
-  const queueTotal = queue.length + (queue.some((j) => j.status === "running") ? 0 : 0);
-  // queue array drains as we shift; running job is held in a separate var
   queueCount.textContent = String(queueList.children.length);
   completeCount.textContent = String(complete.length);
   queueEmpty.classList.toggle("hidden", queueList.children.length > 0);
   completeEmpty.classList.toggle("hidden", complete.length > 0);
+
+  // Convert button: enabled only when there are queued items AND nothing's running.
+  // Clear button: enabled when queued items exist (regardless of running state).
+  const hasQueued = queue.length > 0;
+  convertBtn.disabled = !hasQueued || isProcessing;
+  convertBtn.textContent = isProcessing ? "Converting…" : "Convert";
+  queueClearBtn.disabled = !hasQueued;
 };
+
+convertBtn.addEventListener("click", () => {
+  // Idempotent: if already running, processQueue() returns immediately.
+  processQueue();
+});
+
+queueClearBtn.addEventListener("click", () => {
+  // Remove every queued (not-yet-running) item; leave the active job alone.
+  for (const job of queue) {
+    queueList.querySelector(`[data-id="${job.id}"]`)?.remove();
+  }
+  queue.length = 0;
+  updateCounts();
+});
 
 $("clear-complete").addEventListener("click", () => {
   for (const job of complete) {
@@ -276,6 +300,7 @@ const processQueue = async () => {
   } finally {
     isProcessing = false;
     activeJob = null;
+    updateCounts();
   }
 };
 

@@ -207,8 +207,29 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
   font: inherit;
   font-size: 11px;
   cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
 }
-.tiny-btn:hover { color: var(--text); border-color: var(--accent); }
+.tiny-btn + .tiny-btn { margin-left: 0; }
+.tiny-btn:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
+.tiny-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.tiny-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0b1220;
+  font-weight: 600;
+}
+.tiny-btn.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: #0b1220;
+}
+.tiny-btn.primary:disabled {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--muted);
+  font-weight: normal;
+}
 
 .job-list {
   display: flex;
