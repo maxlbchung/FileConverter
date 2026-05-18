@@ -1,3 +1,8 @@
 .claude/
 .DS_Store
-node_modules/
+.vs/
+bin/
+obj/
+*.user
+*.suo
+publish/
